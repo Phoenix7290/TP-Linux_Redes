@@ -1,7 +1,5 @@
 # Exercício 12 — Checklist de Comissionamento de Conectividade
 
-> **Contexto:** Este checklist foi produzido para validar rapidamente se um host Linux (ou WSL2) está operacionalmente pronto para ser colocado em uso. Cada item deve ser executado em ordem, com evidência registrada. Tempo estimado de execução: 10 minutos.
-
 ---
 
 ## Checklist (10 itens)
@@ -41,7 +39,7 @@
 
 **Resultado: ✅ Passou.** Quatro interfaces com endereço IPv4 global e estado UP. Interface principal: eth1 com `192.168.1.190/24`.
 
-> **📸 Screenshot sugerido:** capturar `ip -4 addr show` com as linhas `inet` visíveis.
+![ip link show](images/ip4.png)
 
 ---
 
@@ -97,7 +95,7 @@ search tail7f9064.ts.net
 
 **Resultado: ✅ Passou.** Nameserver configurado (`10.255.255.254` — DNS stub WSL). `getent hosts` resolveu google.com com sucesso, retornando endereço IPv6 (indicando preferência AAAA via Tailscale). Resolução de nomes operacional.
 
-> **📸 Screenshot sugerido:** capturar os dois comandos em sequência — `cat /etc/resolv.conf` e `getent hosts google.com` — para evidenciar DNS funcional.
+![ip link show](images/getent.png)
 
 ---
 
@@ -133,7 +131,7 @@ WinCore
 
 **Resultado: ✅ Passou.** As três fontes de verdade (runtime, systemd, arquivo) retornam `WinCore` de forma consistente.
 
-> **📸 Screenshot sugerido:** capturar os três comandos em sequência evidenciando o mesmo valor em todas as fontes.
+![ip link show](images/nmclijournalip.png)
 
 ---
 
@@ -165,7 +163,7 @@ net.ipv4.ip_forward = 1
 
 **Resultado: ⚠️ Atenção.** Forwarding está habilitado (`= 1`). Em WSL2, isso é configurado automaticamente pelo subsistema de rede do Windows e é esperado neste contexto. Em um servidor Linux convencional que não é roteador, este valor deveria ser `0`. **Documentado:** habilitado pelo WSL2 por design — não representa risco neste ambiente específico, mas deve ser verificado e justificado em qualquer host antes do comissionamento.
 
-> **📸 Screenshot sugerido:** capturar `sysctl net.ipv4.ip_forward` retornando `1`, com nota sobre o contexto WSL.
+![ip link show](images/ipv4forward.png)
 
 ---
 

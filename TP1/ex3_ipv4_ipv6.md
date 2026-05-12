@@ -27,7 +27,7 @@
        valid_lft forever preferred_lft forever
 ```
 
-> **📸 Screenshot sugerido:** capturar a saída de `ip -4 addr` mostrando todas as interfaces com seus endereços e prefixos.
+![ip link show](images/ip4.png)
 
 ---
 
@@ -45,7 +45,7 @@
        valid_lft forever preferred_lft forever
 ```
 
-> **📸 Screenshot sugerido:** capturar a saída de `ip -6 addr` destacando as linhas `inet6` de eth3 com seus escopos (global e link).
+![ip link show](images/ip6.png)
 
 ---
 

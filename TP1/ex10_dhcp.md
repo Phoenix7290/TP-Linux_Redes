@@ -35,7 +35,7 @@ A ausência de saída indica que o NetworkManager **não está gerenciando** a i
 
 A ausência de entradas confirma que o `systemd-networkd` também **não está ativo** neste ambiente. No WSL2, o gerenciamento de rede é feito pelo próprio subsistema do Windows antes de a distro Linux iniciar — nem o NetworkManager nem o systemd-networkd têm função aqui.
 
-> **📸 Screenshot sugerido:** capturar os três comandos acima em sequência, evidenciando que ferramentas convencionais de DHCP não têm saída em WSL2.
+![ip link show](images/nmclijournalip.png)
 
 ---
 

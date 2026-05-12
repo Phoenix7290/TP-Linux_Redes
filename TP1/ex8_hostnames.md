@@ -32,7 +32,7 @@ Operating System: Ubuntu 24.04.4 LTS
 
 **Conclusão:** Evidência indica que o hostname estático é `WinCore`, rodando sobre Ubuntu 24.04.4 LTS em virtualização WSL2 (kernel Microsoft). O campo `Static hostname` é o nome persistente gravado em `/etc/hostname`. O campo `Chassis: container` reflete que o WSL é detectado como ambiente de container pelo systemd. O `Machine ID` é um identificador único da instância, gerado na instalação e usado por serviços como journald e systemd para correlacionar logs.
 
-> **📸 Screenshot sugerido:** capturar a saída de `hostnamectl` completa para evidenciar todos os campos, em especial `Static hostname` e `Virtualization: wsl`.
+![ip link show](images/hostnamectl.png)
 
 ---
 
@@ -79,7 +79,7 @@ pb-ryansubu-dev
 
 **Conclusão:** Evidência indica que as três fontes de verdade estão consistentes: `hostname` (runtime), `hostnamectl` (systemd) e `/etc/hostname` (arquivo persistente) retornam o mesmo valor `pb-ryansubu-dev`. A alteração é persistente — sobreviverá a reinicializações do WSL.
 
-> **📸 Screenshot sugerido:** capturar o `hostname` e o `hostnamectl` lado a lado após a alteração, evidenciando o novo nome em `Static hostname`.
+![ip link show](images/newhostname.png)
 
 ---
 
@@ -110,7 +110,7 @@ Resultado após ajuste:
 
 **Justificativa do ajuste:** Aplicações que chamam `gethostbyname(hostname())` — ou seja, tentam resolver o próprio hostname — consultam `/etc/hosts` primeiro. Se o arquivo retorna o nome antigo ou falha na resolução do nome novo, comandos como `sudo` podem apresentar o aviso `unable to resolve host pb-ryansubu-dev`, e serviços como Postfix ou RabbitMQ podem recusar iniciar. A consistência entre `/etc/hostname` e `/etc/hosts` é requisito operacional básico.
 
-> **📸 Screenshot sugerido:** capturar o `cat /etc/hosts` após o ajuste, mostrando o novo hostname na linha `127.0.1.1`.
+![ip link show](images/newhostname.png)
 
 ---
 
@@ -139,4 +139,4 @@ WinCore
 
 **Conclusão:** Evidência indica que o hostname foi revertido com sucesso ao valor original `WinCore` em todas as camadas — runtime, systemd e arquivo persistente. O `/etc/hosts` também foi restaurado, mantendo a consistência do ambiente. A operação foi completamente reversível, sem efeito residual.
 
-> **📸 Screenshot sugerido:** capturar o `hostname` retornando `WinCore` após a reversão, para evidenciar o ciclo completo: estado inicial → alteração → reversão.
+![ip link show](images/hostnamectl.png)

@@ -20,7 +20,7 @@ net.ipv4.ip_forward = 1
 
 **Conclusão:** Evidência indica que o forwarding IPv4 já está **habilitado** (`= 1`) neste host. Os dois comandos são equivalentes — `sysctl` lê o parâmetro do kernel através da interface `/proc/sys`, que é o sistema de arquivos virtual que o kernel expõe para inspeção e configuração em tempo real. Ambos confirmam o mesmo valor. O forwarding habilitado no WSL2 é esperado: o subsistema de rede do Windows o ativa por padrão para permitir que o tráfego flua corretamente entre a distro Linux e o host Windows.
 
-> **📸 Screenshot sugerido:** capturar os dois comandos em sequência, evidenciando que tanto o `sysctl` quanto o `/proc` retornam `1`.
+![ip link show](images/ipv4forward.png)
 
 ---
 
@@ -49,8 +49,6 @@ net.ipv4.ip_forward = 1
 ```
 
 **Conclusão:** Evidência indica que a alteração via `sysctl -w` é imediata e verificável. O flag `-w` (write) instrui o `sysctl` a gravar o novo valor diretamente no parâmetro do kernel em tempo real. **Atenção:** esta alteração é volátil — não sobrevive a reinicializações. Para torná-la persistente, seria necessário adicionar `net.ipv4.ip_forward = 1` ao arquivo `/etc/sysctl.conf` ou a um arquivo em `/etc/sysctl.d/`.
-
-> **📸 Screenshot sugerido:** capturar o ciclo completo — desabilitar (valor=0), verificar com `/proc`, habilitar (valor=1), verificar novamente — em uma única captura de tela.
 
 ---
 
@@ -110,8 +108,6 @@ net.ipv4.ip_forward = 0
 ```
 
 **Conclusão:** Evidência indica que o forwarding foi desabilitado com sucesso. O kernel voltou ao comportamento de endpoint: pacotes destinados a outros hosts não serão mais encaminhados. A alteração é imediata — não requer reinicialização nem recarga de serviços. Em produção, reverter o forwarding é o primeiro passo de mitigação caso um host não-roteador tenha sido inadvertidamente configurado para rotear tráfego.
-
-> **📸 Screenshot sugerido:** capturar o `sysctl net.ipv4.ip_forward` e o `cat /proc/sys/net/ipv4/ip_forward` após a reversão, ambos retornando `0`.
 
 ---
 

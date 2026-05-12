@@ -40,7 +40,7 @@ tcp  LISTEN  0  4096    *:3002             *:*          ino:2942
 | 4000 | * | Aplicação web | **Todas as interfaces** |
 | 11434 | * | Ollama (servidor de modelos LLM) | **Todas as interfaces** |
 
-> **📸 Screenshot sugerido:** capturar a saída do `ss -tulpen | grep LISTEN` completa, destacando visualmente a diferença entre as linhas com `127.0.0.1` e as com `*` na coluna Local Address.
+![ip link show](images/tulpenlisten.png)
 
 ---
 

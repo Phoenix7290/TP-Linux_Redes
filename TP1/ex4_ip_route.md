@@ -21,7 +21,7 @@ default via 25.255.255.254 dev eth2 proto kernel metric 10034
 192.168.1.1 dev eth1 proto kernel scope link metric 25
 ```
 
-> **📸 Screenshot sugerido:** capturar a saída completa de `ip route` no terminal.
+![ip link show](images/iproute.png)
 
 ---
 

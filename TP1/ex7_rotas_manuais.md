@@ -23,7 +23,7 @@ default via 25.255.255.254 dev eth2 proto kernel metric 10034
 
 **Evidência do estado inicial registrada.** A tabela possui três rotas default (eth1 ativa, eth0 e eth2 como failover) e rotas conectadas para as sub-redes locais. Nenhuma rota manual está presente — todas têm `proto kernel`, indicando instalação automática pelo sistema.
 
-> **📸 Screenshot sugerido:** capturar a saída do `ip route` antes de qualquer alteração, como baseline do estado inicial.
+![ip link show](images/iproute.png)
 
 ---
 
@@ -57,7 +57,7 @@ Aqui, `8.8.8.8/32` é o prefixo de host único (máscara /32 = endereço exato),
 
 **Conclusão:** Evidência indica que a rota foi inserida com sucesso. O campo `proto static` diferencia esta rota das demais (`proto kernel`), sinalizando que foi adicionada manualmente pelo operador e não pelo gerenciador de rede. O que mudou na tabela: pacotes destinados especificamente a `8.8.8.8` agora seguem esta rota /32, que vence a rota default por ser mais específica (prefixo maior), mesmo que o destino da rota default também seja alcançável.
 
-> **📸 Screenshot sugerido:** capturar o `ip route | grep 8.8.8.8` mostrando a nova entrada com `proto static`, confirmando a inserção manual.
+![ip link show](images/iproutegrep.png)
 
 ---
 
@@ -84,7 +84,7 @@ sudo ip route del 8.8.8.8/32
 
 **Conclusão:** Evidência indica que a rota foi removida com sucesso. A saída vazia do `grep` confirma que `8.8.8.8/32` não existe mais na tabela de rotas. O tráfego para 8.8.8.8 voltou a seguir a rota default (`192.168.1.1 via eth1`), exatamente como estava antes da intervenção. O estado da tabela foi restaurado ao baseline inicial.
 
-> **📸 Screenshot sugerido:** capturar o `ip route | grep 8.8.8.8` retornando vazio após a remoção, evidenciando o rollback completo.
+![ip link show](images/iproutedel.png)
 
 ---
 

@@ -18,7 +18,7 @@
        valid_lft forever preferred_lft forever
 ```
 
-> **📸 Screenshot sugerido:** capturar a saída de `ip -6 addr show` destacando os campos `scope host`, `scope global` e `scope link` em cada linha `inet6`.
+![ip link show](images/ip6addr.png)
 
 ---
 
@@ -30,7 +30,7 @@ fd7a:115c:a1e0::53 dev eth3 proto kernel metric 5 pref medium
 fd7a:115c:a1e0::/48 via fd7a:115c:a1e0::53 dev eth3 proto kernel metric 5 pref medium
 ```
 
-> **📸 Screenshot sugerido:** capturar a saída de `ip -6 route show` para evidenciar a ausência de rota default (`::/0`).
+![ip link show](images/ip6route.png)
 
 ---
 

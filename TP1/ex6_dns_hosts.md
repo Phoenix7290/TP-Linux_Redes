@@ -20,7 +20,7 @@ ff02::2 ip6-allrouters
 
 O arquivo foi gerado automaticamente pelo WSL (conforme o comentário no topo original, que instrui como desabilitar a geração automática em `/etc/wsl.conf`). Contém as entradas padrão mínimas: `127.0.0.1 localhost` para resolução local IPv4 e `127.0.1.1 WinCore` mapeando o hostname da máquina. As entradas `ff02::` são endereços multicast IPv6 padronizados (RFC 4291) e não representam nomes resolvíveis por aplicações comuns.
 
-> **📸 Screenshot sugerido:** capturar a saída de `cat /etc/hosts` mostrando o conteúdo do arquivo.
+![ip link show](images/etchost.png)
 
 ---
 
@@ -34,7 +34,7 @@ search tail7f9064.ts.net
 
 O resolvedor configurado é `10.255.255.254`, que é o DNS stub interno do WSL2 — um proxy que encaminha consultas ao DNS configurado no Windows host. A linha `search tail7f9064.ts.net` é o domínio de busca da rede Tailscale: quando uma aplicação tenta resolver um nome sem ponto (ex.: `meu-servidor`), o sistema automaticamente tenta `meu-servidor.tail7f9064.ts.net` antes de retornar falha. Isso permite endereçar máquinas Tailscale por nome curto.
 
-> **📸 Screenshot sugerido:** capturar a saída de `cat /etc/resolv.conf`.
+![ip link show](images/etcresolv.png)
 
 ---
 
@@ -61,7 +61,7 @@ O comando `tee -a` abre o arquivo em modo append (`-a`) e escreve o conteúdo re
 
 **Conclusão:** Evidência indica que a resolução funcionou via `/etc/hosts`. O comando `getent hosts` consulta os mecanismos de resolução de nomes do sistema na ordem definida em `/etc/nsswitch.conf` (tipicamente `files dns` — primeiro arquivos locais, depois DNS). O retorno de `127.0.0.1` confirma que a entrada foi lida de `/etc/hosts` antes de qualquer consulta ao servidor DNS externo.
 
-> **📸 Screenshot sugerido:** capturar o `getent hosts servico-interno.local` retornando `127.0.0.1` com a entrada presente no `/etc/hosts`.
+![ip link show](images/getent.png)
 
 ---
 
@@ -84,7 +84,7 @@ O comando `sed -i` edita o arquivo in-place. A expressão `/servico-interno.loca
 
 A ausência de saída confirma que `servico-interno.local` não resolve mais. `getent` retornou código de saída não-zero (falha), pois o nome não existe em `/etc/hosts` e nenhum servidor DNS autoritativo conhece esse nome fictício. Se existisse entrada DNS para ele, ainda resolveria — o que confirma que a resolução anterior dependia exclusivamente do arquivo local.
 
-> **📸 Screenshot sugerido:** capturar os dois `getent hosts` em sequência — o que retorna `127.0.0.1` (com a entrada) e o que retorna vazio (após remoção) — para evidenciar o contraste.
+![ip link show](images/notgetent.png)
 
 ---
 
