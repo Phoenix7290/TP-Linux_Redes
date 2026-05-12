@@ -40,7 +40,7 @@
 
 **Justificativa:** `ip link` opera diretamente na Camada 2 (Enlace/Data Link) do modelo OSI. A saída exibe o endereço MAC de cada interface (`link/ether`), que é o identificador de camada 2 — sem ele, quadros Ethernet não podem ser endereçados. As flags `UP` e `LOWER_UP` indicam, respectivamente, que a interface está habilitada administrativamente e que o enlace físico (cabo ou sinal wireless) está ativo. O campo MTU (Maximum Transmission Unit) define o tamanho máximo do quadro na camada 2 — valores diferentes do padrão 1500 (como eth3 com 1280) indicam encapsulamento adicional, como ocorre em túneis VPN. A ausência de endereços IP neste comando confirma que ele é estritamente de camada 2.
 
-> **📸 Screenshot sugerido:** capturar `ip link` com saída colorida do terminal mostrando os estados UP/DOWN.
+![ip link show](images/iplinkshow.png)
 
 ---
 
@@ -92,7 +92,7 @@ rtt min/avg/max/mdev = 0.781/0.893/1.644/0.179 ms
 
 **Justificativa:** O `ping` utiliza o protocolo ICMP (Internet Control Message Protocol), definido no RFC 792, que opera na Camada 3 (Rede) do modelo OSI. Envia pacotes ICMP Echo Request e aguarda ICMP Echo Reply, medindo latência e verificando alcançabilidade IP entre dois hosts. O campo `ttl=64` (Time To Live) é um atributo do cabeçalho IP, confirmando operação em camada 3 — cada roteador decrementa o TTL em 1 ao encaminhar o pacote. O `ping` não abre portas TCP/UDP (camada 4) nem estabelece sessão de aplicação (camada 7), validando isoladamente a conectividade de rede. A latência de ~0,9 ms para 192.168.1.210 (Raspberry Pi local) confirma alcançabilidade dentro da mesma LAN (eth1).
 
-> **📸 Screenshot sugerido:** capturar saída do `ping` mostrando os campos `ttl`, `time` e a linha de estatísticas.
+![ip link show](images/pingserver.png)
 
 ---
 
@@ -160,7 +160,7 @@ Verify return code: 0 (ok)
 
 **Justificativa:** `openssl s_client` opera na Camada 6 (Apresentação) do modelo OSI. A camada de apresentação é responsável por tradução, criptografia e compressão de dados — e TLS (Transport Layer Security) é o protocolo que implementa essas funções no contexto de redes modernas. A saída revela: a cadeia de certificados (`depth=0,1,2`) que valida a identidade do servidor via PKI, o protocolo negociado (`TLSv1.3`), a cifra escolhida (`TLS_AES_256_GCM_SHA384`) que define o algoritmo de criptografia simétrica dos dados em trânsito, e o resultado de verificação (`Verify return code: 0 = ok`), confirmando que o certificado é válido e confiável. Sem esta camada, os dados da aplicação trafegam em texto claro.
 
-> **📸 Screenshot sugerido:** capturar a saída do `openssl s_client` mostrando a cadeia de certificados e o cipher suite negociado.
+![ip link show](images/openssl.png)
 
 ---
 

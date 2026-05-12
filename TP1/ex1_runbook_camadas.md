@@ -26,7 +26,7 @@
 
 **Conclusão:** Evidência indica que as interfaces eth0, eth1, eth2, eth3 e loopback0 estão com estado `UP` e flag `LOWER_UP` (enlace físico ativo). A interface eth4 está `DOWN`, sem enlace físico. O campo `link/ether` exibe o endereço MAC de cada interface, confirmando a identidade de camada 2. O MTU de eth2 (2800) e eth3 (1280) difere do padrão Ethernet (1500), o que é esperado em interfaces virtuais WSL com tunelamento.
 
-> **📸 Screenshot sugerido:** capturar o terminal com a saída colorida de `ip link show`, evidenciando os estados UP/DOWN em verde/vermelho.
+![ip link show](images/iplinkshow.png)
 
 ---
 
@@ -79,7 +79,7 @@
 
 **Conclusão:** Evidência indica que o host possui múltiplos endereços IPv4 em interfaces distintas: eth1 (192.168.1.190/24) é a LAN doméstica, eth0 (26.76.11.189/8) e eth2 (10.140.53.131/24) são interfaces WSL/virtuais adicionais, e eth3 (100.66.217.127/32) pertence à rede Tailscale (VPN mesh). Somente eth3 possui endereço IPv6 global (`fd7a::/48`) e link-local (`fe80::`), o que indica que IPv6 funciona exclusivamente via Tailscale neste ambiente.
 
-> **📸 Screenshot sugerido:** capturar a saída de `ip addr show` destacando as linhas `inet` de cada interface.
+![ip link show](images/ipaddrshow.png)
 
 ---
 
@@ -127,7 +127,7 @@ tcp    LISTEN 0       4096    *:3002               *:*          ...
 
 **Conclusão:** Evidência indica que serviços de banco de dados (MySQL na 3306 e 33060, MongoDB na 27017, PostgreSQL na 5432, Redis na 6379) estão vinculados exclusivamente a `127.0.0.1`, limitando acesso à loopback (boa prática de segurança). Portas 3000, 3002, 4000 e 11434 estão abertas em `*` (0.0.0.0 + ::), ou seja, acessíveis externamente — provavelmente aplicações web de desenvolvimento e Ollama (11434). Isso representa superfície de ataque que deve ser avaliada.
 
-> **📸 Screenshot sugerido:** capturar a saída do `ss -tulpen` destacando a coluna "Local Address" para evidenciar quais serviços estão em localhost vs expostos.
+![ip link show](images/sstulpen.png)
 
 ---
 
