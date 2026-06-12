@@ -7,3 +7,8 @@ vídeo - https://drive.google.com/file/d/14cz3tNn26fWyVtLTPTyNvOe8zDrg5p3S/view?
 # TP 2
 
 Vídeo - 
+
+# TP 3 
+
+Vídeo - 
+
