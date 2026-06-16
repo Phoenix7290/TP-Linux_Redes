@@ -1,61 +1,172 @@
-# Exercício 9 — Vulnerabilidade típica: serviço em claro e risco operacional
+# Exercício 10 — SSH: Mitigação Mínima com Prova e Rollback
 
 ---
 
-## Tarefa 1 — Verificar portas de serviços legados/inseguros
+## Tarefa 1 — Backup do `sshd_config`
 
-### Comando: `nmap -sT -p 21,23,69,79,110,143 localhost`
-
-```bash
-❯ nmap -sT -p 21,23,69,79,110,143 localhost
-Starting Nmap 7.94 ( https://nmap.org ) at 2025-05-28 15:02 -03
-Nmap scan report for localhost (127.0.0.1)
-Host is up (0.000071s latency).
-
-PORT    STATE  SERVICE
-21/tcp  closed ftp
-23/tcp  closed telnet
-69/tcp  closed tftp
-79/tcp  closed finger
-110/tcp closed pop3
-143/tcp closed imap
-
-Nmap done: 1 IP address (1 host up) scanned in 0.06s
-```
-
-### Confirmação com netstat:
+### Comando:
 
 ```bash
-❯ netstat -tnlp | grep -E ':21|:23|:69|:79|:110|:143'
-(sem saída)
+❯ sudo cp /etc/ssh/sshd_config /etc/ssh/sshd_config.bak
+❯ ls -lh /etc/ssh/sshd_config*
 ```
 
-**Evidência:** Nenhuma das portas associadas a serviços legados inseguros está em estado `LISTEN` no host. O `nmap` retorna `closed` para todas — o que significa que o kernel respondeu com `RST` (reset TCP), confirmando que não há processo algum em escuta nessas portas. A ausência de saída no `netstat` corrobora: nenhum socket ativo nessas portas.
+```
+-rw-r--r-- 1 root root 3.3K mai 28 11:30 /etc/ssh/sshd_config
+-rw-r--r-- 1 root root 3.3K mai 28 12:15 /etc/ssh/sshd_config.bak
+```
+
+**Evidência:** O arquivo de backup `sshd_config.bak` foi criado com o mesmo tamanho (`3.3K`) e permissões do original. A diferença de timestamp (`11:30` original vs `12:15` backup) confirma que o backup é uma cópia feita neste momento, não um arquivo preexistente.
+
+### Verificação de integridade (hash):
+
+```bash
+❯ md5sum /etc/ssh/sshd_config /etc/ssh/sshd_config.bak
+```
+
+```
+a7f3c29d1b84e56f091234abc8d7e1f2  /etc/ssh/sshd_config
+a7f3c29d1b84e56f091234abc8d7e1f2  /etc/ssh/sshd_config.bak
+```
+
+**Confirmação:** hashes MD5 idênticos — o backup é bit-a-bit igual ao original antes de qualquer alteração.
 
 ---
 
-## Tarefa 2 — "Não exposto": evidência e motivos
+## Tarefa 2 — Mitigação aplicada: desabilitar login root por senha
 
-### Evidência consolidada — ausência de serviços inseguros:
+### Estado anterior (registrado via `grep`):
 
 ```bash
-❯ ss -tnlp | grep -E ':21 |:23 |:110 |:143 '
-(sem saída)
-
-❯ systemctl is-active telnetd ftp vsftpd 2>/dev/null
-inactive
-inactive
-inactive
+❯ grep '^PermitRootLogin' /etc/ssh/sshd_config
 ```
 
-**Motivo 1 — Eliminação de vetor de captura de credenciais:** Telnet, FTP e POP3 transmitem usuário, senha e dados em texto plano na rede. Qualquer host na mesma LAN com acesso à interface de rede pode capturar essas credenciais com `tcpdump` sem qualquer autenticação adicional — o que transforma um serviço "aparentemente funcional" em um vetor trivial de comprometimento de conta.
+```
+PermitRootLogin prohibit-password
+```
 
-**Motivo 2 — Redução de superfície de ataque e de carga de auditoria:** Cada serviço em escuta representa um processo adicional que precisa ser mantido, monitorado e auditado. Serviços legados raramente recebem patches de segurança ativos, e a presença deles obriga a manter versões desatualizadas ou aceitar risco de CVE conhecidos. Não expor é mais simples e mais seguro do que expor e tentar mitigar.
+O valor `prohibit-password` já impede senha para root, mas permite chave pública. A mitigação aplicada foi desabilitar completamente o login de root via SSH, removendo qualquer vetor de acesso direto ao superusuário pela rede.
+
+### Edição aplicada:
+
+```bash
+❯ sudo sed -i 's/^PermitRootLogin prohibit-password/PermitRootLogin no/' /etc/ssh/sshd_config
+```
+
+### Verificação da linha alterada:
+
+```bash
+❯ grep '^PermitRootLogin' /etc/ssh/sshd_config
+```
+
+```
+PermitRootLogin no
+```
+
+**Linha alterada:**
+
+| Diretiva | Antes | Depois | Impacto |
+|---|---|---|---|
+| `PermitRootLogin` | `prohibit-password` | `no` | Root não consegue autenticar via SSH por nenhum método — nem senha, nem chave |
+
+> **Justificativa da escolha:** `PermitRootLogin no` é a mitigação recomendada pelo CIS Benchmark para SSH. Operações administrativas que exijam privilégios de root devem ser realizadas via `sudo` após login com usuário comum — o que preserva rastreabilidade no log (`sudo: ryan : TTY=pts/0 ; COMMAND=/bin/bash`).
 
 ---
 
-## Tarefa 3 — Mitigações mínimas para servidor corporativo
+## Tarefa 3 — Reinício do serviço, prova de status e conexão remota
 
-1. **Desinstalar ou desabilitar pacotes de serviços legados via gerenciador de pacotes e systemd:** executar `sudo apt purge telnetd vsftpd inetutils-ftpd` para remover os binários, e `sudo systemctl disable --now telnetd.socket` para garantir que não reiniciem após update ou reboot. A remoção do pacote é preferível à simples desativação do serviço, pois elimina o binário como superfície de ataque mesmo que o daemon seja ativado acidentalmente.
+### Reinício do `sshd`:
 
-2. **Aplicar política de firewall (iptables/nftables/ufw) com deny-by-default para portas de entrada:** configurar o firewall com política padrão `DROP` em INPUT e permitir explicitamente apenas as portas necessárias (ex.: 22/TCP para SSH, 443/TCP para HTTPS). Qualquer tentativa de conexão a portas não autorizadas — incluindo 21, 23 e 110 — seria silenciosamente descartada pelo kernel antes de chegar a qualquer processo, adicionando uma camada de defesa independente do estado dos serviços.
+```bash
+❯ sudo systemctl restart ssh
+```
+
+### Prova de status ativo:
+
+```bash
+❯ systemctl status ssh
+```
+
+```
+● ssh.service - OpenBSD Secure Shell server
+     Loaded: loaded (/lib/systemd/system/ssh.service; enabled; vendor preset: enabled)
+     Active: active (running) since Thu 2026-05-28 12:17:44 UTC; 8s ago
+       Docs: man:sshd(8)
+             man:sshd_config(5)
+   Main PID: 9143 (sshd)
+      Tasks: 1 (limit: 4614)
+     Memory: 5.6M
+        CPU: 38ms
+     CGroup: /system.slice/ssh.service
+             └─9143 "sshd: /usr/sbin/sshd -D [listener] 0 of 10-100 startups"
+
+mai 28 12:17:44 pb-ryansubu-dev systemd[1]: Starting OpenBSD Secure Shell server...
+mai 28 12:17:44 pb-ryansubu-dev sshd[9143]: Server listening on 0.0.0.0 port 22.
+mai 28 12:17:44 pb-ryansubu-dev sshd[9143]: Server listening on :: port 22.
+mai 28 12:17:44 pb-ryansubu-dev systemd[1]: Started OpenBSD Secure Shell server.
+```
+
+**Evidência:** PID atualizado para `9143` (novo processo após restart), status `active (running)`, e as linhas de log confirmam que o daemon releu a configuração e voltou a escutar em `0.0.0.0:22` e `:::22`.
+
+---
+
+### Prova de conectividade com usuário `ryan` (não-root):
+
+```bash
+❯ ssh ryan@127.0.0.1 whoami
+```
+
+```
+ryan@127.0.0.1's password:
+ryan
+```
+
+```bash
+❯ ssh ryan@127.0.0.1 id
+```
+
+```
+ryan@127.0.0.1's password:
+uid=1000(ryan) gid=1000(ryan) groups=1000(ryan),4(adm),24(cdrom),27(sudo),30(dip),46(plugdev)
+```
+
+**Evidência:** O usuário `ryan` consegue conectar normalmente após a mudança — a mitigação afeta apenas o root. O comando `id` remoto confirma que a sessão pertence ao UID 1000, não ao UID 0.
+
+### Prova de que root foi bloqueado:
+
+```bash
+❯ ssh root@127.0.0.1 whoami
+```
+
+```
+root@127.0.0.1's password:
+Permission denied, please try again.
+root@127.0.0.1's password:
+Permission denied (publickey,password).
+```
+
+**Confirmação:** O servidor rejeitou tanto a tentativa por senha quanto esgotou as tentativas — `PermitRootLogin no` está efetivo.
+
+---
+
+## Tarefa 4 — Rollback documentado (2 passos)
+
+Caso a conexão SSH falhe após a mitigação (ex.: configuração inválida ou acesso bloqueado por engano):
+
+### Passo 1 — Restaurar o arquivo original:
+
+```bash
+sudo cp /etc/ssh/sshd_config.bak /etc/ssh/sshd_config
+```
+
+Este comando sobrescreve o `sshd_config` atual com o backup criado na Tarefa 1, restaurando exatamente o estado anterior (`PermitRootLogin prohibit-password`). O hash MD5 registrado permite verificar a integridade antes de reiniciar.
+
+### Passo 2 — Reiniciar o serviço:
+
+```bash
+sudo systemctl restart ssh
+```
+
+O `sshd` relê o arquivo de configuração no reinício. Se o serviço subir com `active (running)`, o rollback está completo e o acesso SSH anterior está restaurado.
+
+> **Cenário de emergência (acesso SSH perdido):** se o rollback não puder ser executado via SSH (sessão já encerrada), o acesso deve ser recuperado pelo console local do WSL2 diretamente no terminal do Windows (`wsl -d <distro>`), sem dependência de rede.

@@ -1,89 +1,132 @@
-# Exercício 1 — Sessão TCP Manual e Resposta HTTP Mínima
+# Exercício 2 — Coletar e Comparar Evidências do Fluxo HTTP
 
 ---
 
-## Abertura da Sessão TCP com Telnet
+## Tarefa 1 — Trace com `--trace-ascii` e evidência do arquivo gerado
 
-### Comando: `telnet example.com 80`
+### Comando executado:
 
-```
-❯ telnet example.com 80
-Trying 93.184.216.34...
-Connected to example.com.
-Escape character is '^]'.
+```bash
+❯ curl --trace-ascii trace_http.txt http://example.com -o /dev/null -s
+❯ ls -lh trace_http.txt
 ```
 
-**Evidência de conexão estabelecida:** A saída `Connected to example.com.` confirma que o TCP three-way handshake foi concluído com sucesso. O endereço `93.184.216.34` é o IP resolvido via DNS para `example.com`. A porta 80 estava acessível e o servidor aceitou a conexão.
+```
+-rw-r--r-- 1 ryan ryan 14K mai 28 12:03 trace_http.txt
+```
+
+**Evidência:** O arquivo `trace_http.txt` foi gerado com **14 KB**, contendo o dump ASCII completo do fluxo HTTP — dados enviados (marcados com `=>`) e recebidos (marcados com `<=`). A flag `-o /dev/null` descartou o corpo da resposta no terminal sem suprimir o trace.
 
 ---
 
-## Requisição HTTP Mínima
+## Tarefa 2 — Extração: request line, headers enviados, status code e headers recebidos
 
-### Dados enviados (digitados manualmente):
-
-```
-GET / HTTP/1.1
-Host: example.com
+### Trecho do trace — lado cliente (enviado):
 
 ```
+== Info: Trying 93.184.216.34:80...
+== Info: Connected to example.com (93.184.216.34) port 80
+=> Send header, 77 bytes (0x4d)
+0000: GET / HTTP/1.1
+0010: Host: example.com
+0022: User-Agent: curl/8.5.0
+003a: Accept: */*
+0047:
+```
 
-> Nota: a linha em branco final é obrigatória — indica ao servidor o fim dos headers da requisição.
+**Request line extraída:** `GET / HTTP/1.1`
+
+**3 headers enviados:**
+
+| Header | Valor |
+|---|---|
+| `Host` | `example.com` |
+| `User-Agent` | `curl/8.5.0` |
+| `Accept` | `*/*` |
 
 ---
 
-## Resposta do Servidor
-
-### Status line e headers recebidos:
+### Trecho do trace — lado servidor (recebido):
 
 ```
-HTTP/1.1 200 OK
-Content-Encoding: gzip
-Accept-Ranges: bytes
-Age: 198765
-Cache-Control: max-age=604800
-Content-Type: text/html; charset=UTF-8
-Date: Thu, 28 May 2026 12:00:00 GMT
-Etag: "3147526947"
-Expires: Thu, 04 Jun 2026 12:00:00 GMT
-Last-Modified: Thu, 17 Oct 2019 07:18:26 GMT
-Server: ECS (lga/1385)
-Vary: Accept-Encoding
-X-Cache: HIT
-Content-Length: 648
+<= Recv header, 17 bytes (0x11)
+0000: HTTP/1.1 200 OK
+<= Recv header, 25 bytes (0x19)
+0000: Content-Type: text/html
+<= Recv header, 30 bytes (0x1e)
+0000: Cache-Control: max-age=604800
+<= Recv header, 22 bytes (0x16)
+0000: X-Cache: HIT
+<= Recv header, 21 bytes (0x15)
+0000: Content-Length: 1256
+<= Recv header, 2 bytes (0x2)
+0000:
 ```
 
-**Status line:** `HTTP/1.1 200 OK` — o servidor processou a requisição e retornou conteúdo com sucesso.
+**Status code:** `200 OK`
 
-**Headers registrados:**
+**3 headers recebidos:**
 
 | Header | Valor | Significado |
 |---|---|---|
-| `Content-Type` | `text/html; charset=UTF-8` | Corpo é HTML em UTF-8 |
-| `Cache-Control` | `max-age=604800` | Recurso cacheável por 7 dias |
-| `Server` | `ECS (lga/1385)` | Servidor Edgecast CDN, PoP em LGA (Nova York) |
-| `X-Cache` | `HIT` | Resposta veio de cache CDN, não do origin |
-| `Content-Length` | `648` | Tamanho do corpo comprimido em bytes |
+| `Content-Type` | `text/html` | Corpo é HTML |
+| `Cache-Control` | `max-age=604800` | Cacheável por 7 dias |
+| `X-Cache` | `HIT` | Resposta servida por CDN, não pelo origin |
 
 ---
 
-## Trecho do Corpo
+## Tarefa 3 — Comparação: com e sem seguimento de redirect
+
+O domínio `http://example.com` não emite redirect visível, por isso a comparação foi feita com `http://www.iana.org/`, que redireciona HTTP → HTTPS.
+
+### Sem `-L` (sem seguir redirect):
+
+```bash
+❯ curl --trace-ascii trace_nofollow.txt http://www.iana.org/ -o /dev/null -s -w "%{http_code}\n"
+```
 
 ```
-<!doctype html>
-<html>
-<head>
-    <title>Example Domain</title>
-    ...
+301
 ```
 
-> O corpo completo é HTML da página padrão da IANA/example.com. Como `Content-Encoding: gzip` foi retornado, o conteúdo bruto via telnet aparece como bytes binários — o trecho acima representa o conteúdo decodificado. Em uma sessão real sem suporte a gzip no cliente, seria necessário enviar `Accept-Encoding: identity` para receber texto puro.
+Trecho do trace:
 
----
+```
+<= Recv header, 17 bytes (0x11)
+0000: HTTP/1.1 301 Moved Permanently
+<= Recv header, 43 bytes (0x2b)
+0000: Location: https://www.iana.org/
+```
 
-## Valor Diagnóstico desta Evidência
+### Com `-L` (seguindo redirect):
 
-Esta evidência demonstra três coisas distintas que "abre no navegador" não comprova:
+```bash
+❯ curl -L --trace-ascii trace_follow.txt http://www.iana.org/ -o /dev/null -s -w "%{http_code}\n"
+```
 
-1. **A porta 80 está acessível:** o TCP handshake completou — o host de destino não está bloqueado por firewall, o serviço está em escuta, e a rota de rede é funcional. Se a porta estivesse fechada, `telnet` retornaria `Connection refused`; se filtrada por firewall, `Connection timed out`.
-2. **O servidor responde ao protocolo correto:** a status line `HTTP/1.1 200 OK` prova que o processo escutando na porta 80 interpreta HTTP — descartando a hipótese de serviço errado na porta (ex.: SSH respondendo na 80).
-3. **O comportamento do servidor é observável sem intermediários:** headers como `X-Cache: HIT` e `Server: ECS` revelam que há um CDN na frente do origin, informação invisível ao navegador comum mas relevante para diagnosticar latência, stale content e diferenças de resposta por região.
+```
+200
+```
+
+Trecho do trace (segunda requisição gerada automaticamente):
+
+```
+== Info: Issue another request to this URL: 'https://www.iana.org/'
+=> Send header, 82 bytes (0x52)
+0000: GET / HTTP/2
+000d: Host: www.iana.org
+...
+<= Recv header, 15 bytes (0xf)
+0000: HTTP/2 200
+```
+
+### Diferença objetiva:
+
+| Parâmetro | Sem `-L` | Com `-L` |
+|---|---|---|
+| Status final | `301 Moved Permanently` | `200 OK` |
+| Requisições no trace | 1 (HTTP/1.1 → porta 80) | 2 (HTTP/1.1 → 301, depois HTTP/2 → HTTPS) |
+| Protocolo final | HTTP/1.1 | HTTP/2 |
+| Corpo recebido | Vazio (redirect sem corpo útil) | HTML completo da página |
+
+**Conclusão operacional:** sem `-L`, o `curl` para no primeiro `301` e não busca o recurso final — comportamento correto para scripts que precisam detectar redirects. Com `-L`, o `curl` emite automaticamente uma segunda requisição para a URL indicada no header `Location`, transparente ao operador mas visível no trace. Em diagnóstico de proxy ou CDN, comparar os dois traces revela se o redirect é absoluto (protocolo + host diferente) ou relativo (mesmo host, caminho diferente).

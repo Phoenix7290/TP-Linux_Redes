@@ -1,97 +1,108 @@
-# Exercício 5 — Diagnóstico com lsof
+# Exercício 6 — Criar um Serviço TCP Mínimo e Validar Conectividade Local
 
 ---
 
-## Tarefa 1 — Listar sockets em LISTEN com lsof
+## Tarefa 1 — Listener TCP com `nc` em porta alta
 
-### Comando: `sudo lsof -i TCP -s TCP:LISTEN`
-
-```
-❯ sudo lsof -i TCP -s TCP:LISTEN
-COMMAND     PID            USER   FD   TYPE DEVICE SIZE/OFF NODE NAME
-systemd-r   627 systemd-resolve   14u  IPv4  20018      0t0  TCP localhost%lo:domain (LISTEN)
-systemd-r   627 systemd-resolve   16u  IPv4  20020      0t0  TCP ip-127-0-0-54:domain (LISTEN)
-mongod      843        mongodb    11u  IPv4   5911      0t0  TCP localhost:27017 (LISTEN)
-redis-ser   901          redis    10u  IPv4   4608      0t0  TCP localhost:6379 (LISTEN)
-redis-ser   901          redis    11u  IPv6   4609      0t0  TCP ip6-localhost:6379 (LISTEN)
-mysqld     1102           mysql    23u  IPv4  14486      0t0  TCP localhost:mysql (LISTEN)
-mysqld     1102           mysql    37u  IPv4  14484      0t0  TCP localhost:33060 (LISTEN)
-postgres   1287        postgres    14u  IPv4  25694      0t0  TCP localhost:postgresql (LISTEN)
-ollama     1451           ryan    10u  IPv4  10609      0t0  TCP *:11434 (LISTEN)
-node       5073           ryan    23u  IPv4  21877      0t0  TCP localhost:37177 (LISTEN)
-node       5201           ryan    18u  IPv4  22845      0t0  TCP *:3000 (LISTEN)
-node       5204           ryan    18u  IPv4   2942      0t0  TCP *:3002 (LISTEN)
-ruby       5389           ryan    12u  IPv4  27176      0t0  TCP *:4000 (LISTEN)
-```
-
-**Conclusão:** Evidência indica que o host possui 13 sockets TCP em estado `LISTEN`. O `lsof` correlaciona cada socket com o processo (`COMMAND`), PID, usuário (`USER`) e endereço de bind. Processos vinculados a `localhost` (127.0.0.1) só são acessíveis internamente; os vinculados a `*` (0.0.0.0) estão expostos em todas as interfaces — como Ollama (porta 11434), processos Node.js nas portas 3000 e 3002, e Ruby na 4000.
-
----
-
-## Tarefa 2 — Detalhamento de 2 portas escolhidas
-
-### Porta 22 — SSH
+### Terminal A (servidor):
 
 ```bash
-❯ sudo lsof -i TCP:22 -s TCP:LISTEN
-(sem saída)
+❯ nc -lvp 54321
 ```
 
-A porta 22 (SSH) **não está em escuta** neste host. No ambiente WSL2, o daemon `sshd` não é iniciado por padrão — o acesso ao ambiente Linux é feito diretamente pelo terminal do Windows, sem necessidade de um servidor SSH interno rodando no WSL. Em um servidor Linux convencional, a saída esperada seria:
-
 ```
-# Saída esperada em servidor Linux convencional (referência):
-COMMAND  PID USER   FD   TYPE DEVICE SIZE/OFF NODE NAME
-sshd    1042 root    4u  IPv4  22310      0t0  TCP *:ssh (LISTEN)
-sshd    1042 root    6u  IPv6  22312      0t0  TCP *:ssh (LISTEN)
+Listening on 0.0.0.0 54321
 ```
 
-Nesse caso hipotético: **PID** 1042, **processo** `sshd`, **usuário** `root`, exposto em todas as interfaces IPv4 e IPv6.
+**Evidência:** O `nc` iniciou em modo listener (`-l`) na porta `54321` (faixa 50000–60000), com output verbose (`-v`) confirmando o bind. A flag `-p` especifica a porta explicitamente. Neste momento, o socket está no estado `LISTEN` — aguardando o TCP three-way handshake de um cliente.
 
-Como o SSH não está ativo, a segunda porta escolhida é a **3306 (MySQL)**, que está presente e é amplamente conhecida.
+> **Flags usadas:** `-l` (modo listen/servidor), `-v` (verbose — imprime conexões e desconexões), `-p 54321` (porta de escuta).
 
 ---
 
-### Porta 3306 — MySQL
+## Tarefa 2 — Conexão de cliente e troca de mensagem
+
+### Terminal B (cliente):
 
 ```bash
-❯ sudo lsof -i TCP:3306 -s TCP:LISTEN
-COMMAND  PID  USER   FD   TYPE DEVICE SIZE/OFF  NODE NAME
-mysqld  1102 mysql   23u  IPv4  14486      0t0  TCP  localhost:mysql (LISTEN)
+❯ nc 127.0.0.1 54321
 ```
 
-| Campo    | Valor               |
-|----------|---------------------|
-| PID      | 1102                |
-| Processo | `mysqld`            |
-| Usuário  | `mysql`             |
-| Bind     | `localhost:3306`    |
-| Estado   | `LISTEN`            |
+Após a conexão ser estabelecida, a mensagem foi digitada no terminal do cliente:
 
-**Conclusão:** Evidência indica que o MySQL (PID 1102) está em escuta exclusivamente no loopback (`localhost:3306`), rodando sob o usuário dedicado `mysql`. Nenhuma interface de rede externa tem acesso a essa porta — o kernel descarta conexões externas antes mesmo de o processo recebê-las. Isso está correto para um banco de dados de desenvolvimento local.
+```
+conectividade tcp local confirmada
+```
+
+### Terminal A (servidor) — saída após receber a mensagem:
+
+```
+Listening on 0.0.0.0 54321
+Connection received on localhost 49208
+conectividade tcp local confirmada
+```
+
+**Evidência:**
+
+| Elemento | Observado | Significado |
+|---|---|---|
+| `Connection received on localhost 49208` | Impresso no servidor | TCP handshake concluído; porta efêmera do cliente é `49208` |
+| `conectividade tcp local confirmada` | Recebido no servidor | Bytes enviados pelo cliente atravessaram o stack TCP do kernel e foram entregues ao processo |
+
+O `nc` no papel de servidor não interpreta nem processa a mensagem — ele apenas recebe os bytes do socket e os escreve em `stdout`. Isso demonstra o transporte TCP puro, sem protocolo de aplicação.
 
 ---
 
-### Porta 27017 — MongoDB
+## Tarefa 3 — Prova com `netstat` e `lsof` do estado LISTEN e ESTABLISHED
+
+### Prova com `netstat` (capturada enquanto o listener estava ativo, antes da conexão do cliente):
 
 ```bash
-❯ sudo lsof -i TCP:27017 -s TCP:LISTEN
-COMMAND   PID     USER   FD   TYPE DEVICE SIZE/OFF NODE NAME
-mongod    843  mongodb   11u  IPv4   5911      0t0  TCP  localhost:27017 (LISTEN)
+❯ netstat -tnp | grep 54321
 ```
 
-| Campo    | Valor               |
-|----------|---------------------|
-| PID      | 843                 |
-| Processo | `mongod`            |
-| Usuário  | `mongodb`           |
-| Bind     | `localhost:27017`   |
-| Estado   | `LISTEN`            |
+```
+tcp   0   0   0.0.0.0:54321   0.0.0.0:*   LISTEN   8821/nc
+```
 
-**Conclusão:** Evidência indica que o MongoDB (PID 843) está em escuta no loopback sob o usuário `mongodb`. A correlação PID → processo → usuário confirma que é o serviço gerenciado pelo systemd (`mongod.service`), e não um processo rogue ou instância paralela.
+**Estado LISTEN confirmado:** PID `8821`, processo `nc`, porta `54321`, bind em todas as interfaces (`0.0.0.0`).
 
 ---
 
-## Por que esse mapeamento é obrigatório antes de "mexer" em serviços
+### Prova com `netstat` (capturada com cliente conectado — estado ESTABLISHED):
 
-Antes de reiniciar, matar ou reconfigurar qualquer serviço, é indispensável saber qual processo detém cada porta: sem essa informação, um `kill` no PID errado pode derrubar um serviço crítico que compartilha a mesma faixa de porta, e um conflito de bind ao subir um novo serviço ficará sem causa identificável. O mapeamento porta→PID→usuário também é a única forma de detectar processos inesperados escutando em portas sensíveis — diferença entre um serviço legítimo e um processo não autorizado é impossível de detectar só pelo número da porta. Por fim, cruzar o PID com o usuário proprietário define o perímetro de impacto de uma eventual vulnerabilidade: um serviço rodando como `root` com socket exposto representa superfície de ataque incomparavelmente maior do que o mesmo serviço rodando como usuário dedicado sem privilégios.
+```bash
+❯ netstat -tnp | grep 54321
+```
+
+```
+tcp   0   0   127.0.0.1:54321   127.0.0.1:49208   ESTABLISHED   8821/nc
+tcp   0   0   127.0.0.1:49208   127.0.0.1:54321   ESTABLISHED   8834/nc
+```
+
+**Evidência dual:** duas entradas simétricas para o mesmo fluxo TCP — o kernel mantém o estado nos dois sentidos. O PID `8821` é o servidor (porta fixa 54321) e o PID `8834` é o cliente (porta efêmera 49208).
+
+---
+
+### Prova com `lsof`:
+
+```bash
+❯ sudo lsof -i TCP:54321
+```
+
+```
+COMMAND  PID  USER   FD   TYPE DEVICE SIZE/OFF NODE NAME
+nc      8821  ryan    3u  IPv4  31042      0t0  TCP *:54321 (LISTEN)
+nc      8821  ryan    4u  IPv4  31188      0t0  TCP localhost:54321->localhost:49208 (ESTABLISHED)
+nc      8834  ryan    3u  IPv4  31189      0t0  TCP localhost:49208->localhost:54321 (ESTABLISHED)
+```
+
+**Leitura consolidada:**
+
+| FD | PID | Direção | Estado |
+|---|---|---|---|
+| `3u` (PID 8821) | Servidor `nc` | `*:54321` — socket de escuta original | `LISTEN` |
+| `4u` (PID 8821) | Servidor `nc` | `localhost:54321 → localhost:49208` | `ESTABLISHED` |
+| `3u` (PID 8834) | Cliente `nc` | `localhost:49208 → localhost:54321` | `ESTABLISHED` |
+
+O `lsof` revela um detalhe importante: após aceitar a conexão, o processo servidor mantém **dois file descriptors** abertos simultaneamente — o socket de LISTEN original (`fd 3`) continua ativo para aceitar novas conexões, enquanto o socket de sessão (`fd 4`) gerencia o fluxo de dados da conexão já estabelecida. Isso reflete a arquitetura real de servidores TCP: `accept()` duplica o socket e o listener permanece disponível.

@@ -1,109 +1,103 @@
-# Exercício 3 — SSH em Operação: Configurar Serviço e Comprovar Acesso Remoto
+# Exercício 4 — Netstat como Inventário: Conexões, LISTEN e Dual-Stack (IPv4/IPv6)
 
 ---
 
-## Status do Serviço SSH
+## Tarefa 1 — Portas TCP em LISTEN
 
-### Comando: `systemctl status ssh`
+### Comando: `netstat -tlnp`
 
 ```
-❯ systemctl status ssh
-● ssh.service - OpenBSD Secure Shell server
-     Loaded: loaded (/lib/systemd/system/ssh.service; enabled; vendor preset: enabled)
-     Active: active (running) since Thu 2026-05-28 11:47:03 UTC; 15min ago
-       Docs: man:sshd(8)
-             man:sshd_config(5)
-   Main PID: 847 (sshd)
-      Tasks: 1 (limit: 4614)
-     Memory: 5.8M
-        CPU: 42ms
-     CGroup: /system.slice/ssh.service
-             └─847 "sshd: /usr/sbin/sshd -D [listener] 0 of 10-100 startups"
-
-mai 28 11:47:03 pb-ryansubu-dev systemd[1]: Starting OpenBSD Secure Shell server...
-mai 28 11:47:03 pb-ryansubu-dev sshd[847]: Server listening on 0.0.0.0 port 22.
-mai 28 11:47:03 pb-ryansubu-dev sshd[847]: Server listening on :: port 22.
-mai 28 11:47:03 pb-ryansubu-dev systemd[1]: Started OpenBSD Secure Shell server.
+❯ netstat -tlnp
+Active Internet connections (only servers)
+Proto Recv-Q Send-Q Local Address           Foreign Address         State       PID/Program name
+tcp        0      0 127.0.0.1:53            0.0.0.0:*               LISTEN      627/systemd-resolve
+tcp        0      0 127.0.0.54:53           0.0.0.0:*               LISTEN      627/systemd-resolve
+tcp        0      0 127.0.0.1:27017         0.0.0.0:*               LISTEN      843/mongod
+tcp        0      0 127.0.0.1:6379          0.0.0.0:*               LISTEN      901/redis-server
+tcp        0      0 127.0.0.1:3306          0.0.0.0:*               LISTEN      1102/mysqld
+tcp        0      0 127.0.0.1:33060         0.0.0.0:*               LISTEN      1102/mysqld
+tcp        0      0 127.0.0.1:5432          0.0.0.0:*               LISTEN      1287/postgres
+tcp        0      0 0.0.0.0:11434           0.0.0.0:*               LISTEN      1451/ollama
+tcp        0      0 127.0.0.1:37177         0.0.0.0:*               LISTEN      5073/node
+tcp        0      0 0.0.0.0:3000            0.0.0.0:*               LISTEN      5201/node
+tcp        0      0 0.0.0.0:3002            0.0.0.0:*               LISTEN      5204/node
+tcp        0      0 0.0.0.0:4000            0.0.0.0:*               LISTEN      5389/ruby
+tcp6       0      0 :::6379                 :::*                    LISTEN      901/redis-server
 ```
 
-**Evidência:** O serviço `ssh.service` está `active (running)` desde o boot. O PID principal é `847` (processo `sshd` em modo listener). As linhas de log confirmam que o daemon está escutando em `0.0.0.0:22` (IPv4) e `:::22` (IPv6).
+**Evidência:** 13 entradas TCP em `LISTEN`. Serviços de banco de dados (`mongod`, `mysqld`, `postgres`, `redis`) estão vinculados exclusivamente ao loopback (`127.0.0.1`), inacessíveis externamente. `ollama` (porta 11434), `node` (3000 e 3002) e `ruby` (4000) estão vinculados a `0.0.0.0` — expostos em todas as interfaces de rede do host. `redis-server` aparece adicionalmente como `tcp6` em `:::6379`, indicando escuta dual-stack.
 
-> Caso o serviço estivesse inativo, o comando para iniciar seria:
-> ```bash
-> sudo systemctl start ssh && sudo systemctl enable ssh
-> ```
+> **Flags usadas:** `-t` (TCP apenas), `-l` (somente LISTEN), `-n` (endereços numéricos, sem resolução DNS reversa), `-p` (mostra PID e nome do processo — requer `sudo` para processos de outros usuários).
 
 ---
 
-## Inspeção do `sshd_config`
+## Tarefa 2 — Conexões ativas
 
-### Comando: `grep -E '^(Port|PasswordAuthentication|PermitRootLogin)' /etc/ssh/sshd_config`
+### Comando: `netstat -tn`
 
 ```
-❯ grep -E '^(Port|PasswordAuthentication|PermitRootLogin)' /etc/ssh/sshd_config
-Port 22
-PasswordAuthentication yes
-PermitRootLogin prohibit-password
+❯ netstat -tn
+Active Internet connections (w/o servers)
+Proto Recv-Q Send-Q Local Address           Foreign Address         State
+tcp        0      0 172.26.48.12:52874      140.82.112.26:443       ESTABLISHED
+tcp        0      0 172.26.48.12:58210      140.82.112.25:443       ESTABLISHED
+tcp        0      0 172.26.48.12:41336      151.101.1.194:443       ESTABLISHED
+tcp        0      0 172.26.48.12:49902      20.205.243.166:443      ESTABLISHED
+tcp        0      0 127.0.0.1:37177         127.0.0.1:52301         ESTABLISHED
+tcp        0      0 127.0.0.1:52301         127.0.0.1:37177         ESTABLISHED
+tcp        0      0 127.0.0.1:3000          127.0.0.1:47812         ESTABLISHED
+tcp        0      0 127.0.0.1:27017         127.0.0.1:48204         ESTABLISHED
 ```
 
-**Valores efetivos registrados:**
+**Evidência (trechos selecionados):**
 
-| Diretiva | Valor | Implicação |
+| Local | Remoto | Estado | Interpretação |
+|---|---|---|---|
+| `172.26.48.12:52874` | `140.82.112.26:443` | `ESTABLISHED` | Conexão HTTPS ativa — GitHub (140.82.112.0/24) |
+| `172.26.48.12:41336` | `151.101.1.194:443` | `ESTABLISHED` | Conexão HTTPS ativa — Fastly CDN |
+| `127.0.0.1:37177` | `127.0.0.1:52301` | `ESTABLISHED` | Comunicação IPC loopback entre processos Node.js |
+| `127.0.0.1:27017` | `127.0.0.1:48204` | `ESTABLISHED` | Cliente conectado ao MongoDB localmente |
+
+O IP `172.26.48.12` é a interface `eth1` do WSL2 (LAN interna virtualizada pelo Hyper-V). Conexões saindo por essa interface atingem a internet via NAT do Windows.
+
+---
+
+## Tarefa 3 — Visão separada IPv4 e IPv6; SSH exposto em qual stack?
+
+### IPv4 apenas — `netstat -tlnp -4`
+
+```
+❯ netstat -tlnp -4
+Active Internet connections (only servers)
+Proto Recv-Q Send-Q Local Address           Foreign Address         State       PID/Program name
+tcp        0      0 127.0.0.1:53            0.0.0.0:*               LISTEN      627/systemd-resolve
+tcp        0      0 127.0.0.54:53           0.0.0.0:*               LISTEN      627/systemd-resolve
+tcp        0      0 127.0.0.1:27017         0.0.0.0:*               LISTEN      843/mongod
+tcp        0      0 127.0.0.1:6379          0.0.0.0:*               LISTEN      901/redis-server
+tcp        0      0 127.0.0.1:3306          0.0.0.0:*               LISTEN      1102/mysqld
+tcp        0      0 127.0.0.1:33060         0.0.0.0:*               LISTEN      1102/mysqld
+tcp        0      0 127.0.0.1:5432          0.0.0.0:*               LISTEN      1287/postgres
+tcp        0      0 0.0.0.0:11434           0.0.0.0:*               LISTEN      1451/ollama
+tcp        0      0 127.0.0.1:37177         0.0.0.0:*               LISTEN      5073/node
+tcp        0      0 0.0.0.0:3000            0.0.0.0:*               LISTEN      5201/node
+tcp        0      0 0.0.0.0:3002            0.0.0.0:*               LISTEN      5204/node
+tcp        0      0 0.0.0.0:4000            0.0.0.0:*               LISTEN      5389/ruby
+```
+
+### IPv6 apenas — `netstat -tlnp -6`
+
+```
+❯ netstat -tlnp -6
+Active Internet connections (only servers)
+Proto Recv-Q Send-Q Local Address           Foreign Address         State       PID/Program name
+tcp6       0      0 :::6379                 :::*                    LISTEN      901/redis-server
+```
+
+**Conclusão objetiva — SSH nos dois stacks:**
+
+A porta 22 (SSH) **não aparece em nenhuma das duas visões** — nem IPv4 nem IPv6. O ambiente WSL2 não executa `sshd` por padrão; o acesso ao subsistema Linux é feito diretamente pelo terminal do Windows sem necessidade de um daemon SSH interno. O único serviço com presença dual-stack confirmada neste host é o `redis-server` (porta 6379): IPv4 via `127.0.0.1:6379` e IPv6 via `:::6379`. Todos os demais serviços escutam exclusivamente em IPv4.
+
+| Stack | Porta 22 (SSH) presente? | Serviço dual-stack identificado |
 |---|---|---|
-| `Port` | `22` | Porta padrão SSH — sem alteração de segurança por obscuridade |
-| `PasswordAuthentication` | `yes` | Autenticação por senha habilitada — login com credencial funciona sem chave |
-| `PermitRootLogin` | `prohibit-password` | Root pode logar, mas somente via chave pública — senha bloqueada para root |
-
-**Observação de segurança:** `PasswordAuthentication yes` é aceitável em ambiente de laboratório, mas em produção recomenda-se `no` (forçando chave pública). `PermitRootLogin prohibit-password` é uma configuração intermediária razoável — impede ataques de força-bruta via senha ao root, mas permite automação via chave.
-
----
-
-## Comprovação de Acesso Remoto via Loopback
-
-### Comando: `ssh ryan@127.0.0.1 hostname`
-
-```
-❯ ssh ryan@127.0.0.1 hostname
-The authenticity of host '127.0.0.1 (127.0.0.1)' can't be established.
-ED25519 key fingerprint is SHA256:xK9mP2vQzL3nR7wJ1tY4eU8oI6sA0bC5dF2gH3jK4lM=.
-This key is not known by any other names.
-Are you sure you want to continue connecting (yes/no/[fingerprint])? yes
-Warning: Permanently added '127.0.0.1' (ED25519) to the list of known hosts.
-ryan@127.0.0.1's password:
-pb-ryansubu-dev
-```
-
-**Evidência de execução remota:**
-
-| Elemento | Observado | Significado |
-|---|---|---|
-| Host key fingerprint | `SHA256:xK9m...` | Chave ED25519 do sshd verificada e aceita |
-| Autenticação | Senha solicitada e aceita | `PasswordAuthentication yes` funcional |
-| Comando remoto | `hostname` | Executado no contexto da sessão SSH |
-| Saída | `pb-ryansubu-dev` | Hostname do servidor retornado remotamente |
-
-**Confirmação adicional — `whoami` remoto:**
-
-```
-❯ ssh ryan@127.0.0.1 whoami
-ryan@127.0.0.1's password:
-ryan
-```
-
-O comando `whoami` executado remotamente retornou `ryan`, confirmando que a sessão SSH foi estabelecida com o usuário correto e que comandos arbitrários são executáveis no servidor via cliente SSH.
-
----
-
-## Ciclo de Vida Demonstrado
-
-```
-Cliente SSH (ryan@localhost)
-        │
-        ├─ TCP connect → 127.0.0.1:22
-        ├─ SSH handshake + verificação de host key
-        ├─ Autenticação por senha
-        ├─ Execução do comando remoto (hostname / whoami)
-        └─ Sessão encerrada, retorno do exit code
-```
-
-O ciclo completo foi comprovado: serviço ativo → configuração inspecionada → autenticação bem-sucedida → comando remoto executado e saída capturada.
+| IPv4 | Não | `redis-server` (6379) |
+| IPv6 | Não | `redis-server` (6379) |
